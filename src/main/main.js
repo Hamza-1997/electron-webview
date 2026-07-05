@@ -62,7 +62,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -72,9 +72,11 @@ function createWindow() {
 
   // This tells Linux to prevent the screen from sleeping or activating screen savers
   app.commandLine.appendSwitch("disable-background-timer-throttling");
-
+  // mainWindow = new BrowserWindow({show: false});
+  // mainWindow.maximize();
+  // mainWindow.show();
   mainWindow.loadURL(buildAssessmentUrl());
-
+  // mainWindow.setIgnoreMouseEvents(true)
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -228,6 +230,12 @@ function buildAssessmentUrl() {
   if (currentSession) {
     url.searchParams.set("token", currentSession.token);
     url.searchParams.set("assessment_id", currentSession.assessId);
+    if (currentSession.accessToken) {
+      url.searchParams.set("access_token", currentSession.accessToken);
+    }
+    if (currentSession.refreshToken) {
+      url.searchParams.set("refresh_token", currentSession.refreshToken);
+    }
   }
 
   url.searchParams.set("desktop_mode", "secure_browser");
@@ -518,17 +526,19 @@ function parseDeepLink(url) {
         parsed.searchParams.get("target_url") ||
         parsed.searchParams.get("assessment_url") ||
         parsed.searchParams.get("redirect_url"),
+      accessToken: parsed.searchParams.get("access_token"),
+      refreshToken: parsed.searchParams.get("refresh_token"),
     };
   } catch {
-    return { token: null, assessId: null, targetUrl: null };
+    return { token: null, assessId: null, targetUrl: null, accessToken: null, refreshToken: null };
   }
 }
 
 async function handleDeepLink(url) {
-  const { token, assessId, targetUrl } = parseDeepLink(url);
+  const { token, assessId, targetUrl, accessToken, refreshToken } = parseDeepLink(url);
   if (!token || !assessId) return;
 
-  currentSession = { token, assessId, targetUrl };
+  currentSession = { token, assessId, targetUrl, accessToken, refreshToken };
   allowUrlOrigin(targetUrl);
 
   await patchConnection(true);
