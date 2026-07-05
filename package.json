@@ -1,0 +1,63 @@
+{
+  "name": "testfuse-electron",
+  "version": "1.0.0",
+  "description": "TestFuse anticheat and proctoring desktop application for online exams",
+  "main": "src/main/main.js",
+  "author": {
+    "name": "TestFuse",
+    "email": "support@testfuse.com"
+  },
+  "homepage": "https://testfuse.com",
+  "scripts": {
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "build": "electron-builder",
+    "dev": "env -u ELECTRON_RUN_AS_NODE NODE_ENV=development electron .",
+    "secure": "env -u ELECTRON_RUN_AS_NODE NODE_ENV=development electron .",
+    "secure:demo": "env -u ELECTRON_RUN_AS_NODE TESTFUSE_CONNECTION_TOKEN=1f5af107fcb4982d47013f36548e04d806ec77a3c76c54f231d2d159c5550815 TESTFUSE_ASSESSMENT_ID=6a4ac0be1c6c2bb46ba2fdf4 NODE_ENV=development electron ."
+  },
+  "keywords": [
+    "exam",
+    "proctoring",
+    "anticheat",
+    "electron"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "pixelmatch": "^7.1.0",
+    "pngjs": "^7.0.0",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "electron": "^42.5.1",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.testfuse.app",
+    "productName": "TestFuse Exam App",
+    "protocols": [
+      {
+        "name": "TestFuse Protocol",
+        "schemes": [
+          "testfuse"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "maintainer": "TestFuse <support@testfuse.com>",
+      "artifactName": "TestFuse-Exam-App-${version}.${ext}"
+    }
+  }
+}

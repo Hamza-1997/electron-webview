@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TestFuse Security Warning</title>
+  <link rel="stylesheet" href="secure-overlay.css" />
+</head>
+<body>
+  <main class="warning-dialog">
+    <div class="warning-kicker">TestFuse Secure Browser</div>
+    <h1 id="warning-title">Security Warning</h1>
+    <p id="warning-message"></p>
+    <div id="warning-detail" class="warning-detail" hidden></div>
+    <div class="actions">
+      <button id="close-app-btn" class="primary" hidden>Close App</button>
+      <button id="dismiss-btn">Dismiss</button>
+    </div>
+  </main>
+  <script src="secure-overlay.js"></script>
+</body>
+</html>
