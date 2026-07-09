@@ -13,7 +13,7 @@
     "build": "electron-builder",
     "dev": "env -u ELECTRON_RUN_AS_NODE NODE_ENV=development electron .",
     "secure": "env -u ELECTRON_RUN_AS_NODE NODE_ENV=development electron .",
-    "secure:demo": "env -u ELECTRON_RUN_AS_NODE TESTFUSE_CONNECTION_TOKEN=1f5af107fcb4982d47013f36548e04d806ec77a3c76c54f231d2d159c5550815 TESTFUSE_ASSESSMENT_ID=6a4ac0be1c6c2bb46ba2fdf4 NODE_ENV=development electron ."
+    "secure:demo": "env -u ELECTRON_RUN_AS_NODE TESTFUSE_CONNECTION_TOKEN=1f5af107fcb4982d47013f36548e04d806ec77a3c76c54f231d2d159c5550815 TESTFUSE_ASSESSMENT_ID=6a4ac0be1c6c2bb46ba2fdf4 NODE_ENV=development electron --ozone-platform=x11 ."
   },
   "keywords": [
     "exam",

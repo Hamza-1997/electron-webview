@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut } = require("electron");
+const { app, BrowserWindow, ipcMain, globalShortcut, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -7,15 +7,15 @@ const { exec } = require("child_process");
 const fetch = global.fetch || require("node-fetch");
 
 const BASE_URL = "http://localhost:8080/v1/assessments/application_session/";
-const WEB_APP_URL = process.env.TESTFUSE_WEB_APP_URL || "http://localhost:3000/dashboard/assessments/6a4acdd59359266079b0f013";
+const WEB_APP_ORIGIN = process.env.TESTFUSE_WEB_APP_URL || "http://localhost:3000";
 const INITIAL_TARGET_URL = process.env.TESTFUSE_TARGET_URL || null;
 const INITIAL_CONNECTION_TOKEN =
   process.env.TESTFUSE_CONNECTION_TOKEN ||
-  "1f5af107fcb4982d47013f36548e04d806ec77a3c76c54f231d2d159c5550815";
+  "4d66151ea81c95e6fe2c65e52ac9a50738e113bed4ab2286c0bbd293346c2798";
 const INITIAL_ASSESSMENT_ID =
-  process.env.TESTFUSE_ASSESSMENT_ID || "6a4acdd59359266079b0f013";
+  process.env.TESTFUSE_ASSESSMENT_ID || "6a4ae0f79359266079b0f033";
 const ALLOWED_ORIGINS = new Set(
-  [new URL(WEB_APP_URL).origin]
+  [new URL(WEB_APP_ORIGIN).origin]
     .concat((process.env.TESTFUSE_ALLOWED_ORIGINS || "").split(","))
     .map((origin) => origin.trim())
     .filter(Boolean)
@@ -23,6 +23,8 @@ const ALLOWED_ORIGINS = new Set(
 
 log.transports.file.level = "info";
 log.transports.console.level = "info";
+
+app.commandLine.appendSwitch("disable-background-timer-throttling");
 
 let mainWindow;
 let overlayWindow;
@@ -37,6 +39,8 @@ let screenshotPollingInterval = null;
 let recentScreenshotFiles = new Set();
 let lastScreenshotWarningAt = 0;
 let warnedPids = new Set();
+
+const FOCUS_ENFORCE_INTERVAL_MS = 1000;
 
 const SCREENSHOT_WARNING_COOLDOWN_MS = 1500;
 const SCREENSHOT_SCAN_INTERVAL_MS = 2000;
@@ -69,14 +73,8 @@ function createWindow() {
   applySecureBrowserPolicy();
   attachNavigationGuards();
   attachShortcutGuards();
-
-  // This tells Linux to prevent the screen from sleeping or activating screen savers
-  app.commandLine.appendSwitch("disable-background-timer-throttling");
-  // mainWindow = new BrowserWindow({show: false});
   // mainWindow.maximize();
   // mainWindow.show();
-  mainWindow.loadURL(buildAssessmentUrl());
-  // mainWindow.setIgnoreMouseEvents(true)
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -110,6 +108,11 @@ function createOverlayWindow() {
     if (!isQuitting) {
       event.preventDefault();
       safeHideWindow(overlayWindow);
+      if (isUsableWindow(mainWindow)) {
+        mainWindow.setAlwaysOnTop(true, "screen-saver");
+        mainWindow.setKiosk(true);
+        mainWindow.focus();
+      }
     }
   });
 
@@ -199,7 +202,7 @@ function attachShortcutGuards() {
       input.key === "F5" ||
       input.key === "F11" ||
       input.key === "F12" ||
-      input.alt ||
+      (input.alt && ["tab", "f4"].includes(key)) ||
       (ctrlOrMeta && ["l", "n", "o", "p", "r", "t", "w"].includes(key)) ||
       (ctrlOrMeta && input.shift && ["i", "j", "c"].includes(key));
 
@@ -225,7 +228,7 @@ function isAllowedUrl(url) {
 }
 
 function buildAssessmentUrl() {
-  const url = new URL(currentSession?.targetUrl || WEB_APP_URL);
+  const url = new URL(currentSession?.targetUrl || WEB_APP_ORIGIN);
 
   if (currentSession) {
     url.searchParams.set("token", currentSession.token);
@@ -271,9 +274,13 @@ function showSecurityWarning({ type, title, message, detail, app = null }) {
     if (!isUsableWindow(overlayWindow)) return;
 
     overlayWindow.webContents.send("security-warning", payload);
-    overlayWindow.show();
-    overlayWindow.focus();
+    overlayWindow.showInactive();
     overlayWindow.setAlwaysOnTop(true, "screen-saver");
+
+    if (isUsableWindow(mainWindow)) {
+      mainWindow.setAlwaysOnTop(true, "screen-saver");
+      mainWindow.focus();
+    }
   };
 
   if (overlayWindow.webContents.isLoading()) {
@@ -316,14 +323,12 @@ if (!gotLock) {
     startScreenshotDetection();
     startSecurityMonitoring();
     registerDemoExitShortcut();
+    registerFocusLockShortcuts();
+    startFocusEnforcement();
 
     const url = extractDeepLink(process.argv);
     if (url) {
       handleDeepLink(url);
-    } else if (currentSession) {
-      patchConnection(true);
-      startHeartbeat();
-      shouldStartPolling = true;
     }
   });
 }
@@ -359,6 +364,44 @@ function registerDemoExitShortcut() {
   if (!registered) {
     log.warn("Could not register demo exit shortcut: CommandOrControl+Shift+Q");
   }
+}
+
+function registerFocusLockShortcuts() {
+  const focusShortcuts = [
+    "Alt+Tab",
+    "Alt+Shift+Tab",
+    "Alt+Escape",
+    "Super+Tab",
+    "Super+Shift+Tab",
+    "Super+Escape",
+  ];
+
+  for (const shortcut of focusShortcuts) {
+    const registered = globalShortcut.register(shortcut, () => {
+      if (!isUsableWindow(mainWindow) || isQuitting) return;
+      mainWindow.setAlwaysOnTop(true, "screen-saver");
+      mainWindow.setKiosk(true);
+      mainWindow.focus();
+      showSecurityWarning({
+        type: "shortcut",
+        title: "Restricted Action",
+        message: "Switching applications is not permitted during this secure assessment.",
+        detail: shortcut,
+      });
+    });
+
+    if (!registered) {
+      log.warn(`Could not register focus lock shortcut: ${shortcut}`);
+    }
+  }
+}
+
+function startFocusEnforcement() {
+  setInterval(() => {
+    if (isQuitting || !isUsableWindow(mainWindow)) return;
+    mainWindow.setAlwaysOnTop(true, "screen-saver");
+    mainWindow.setKiosk(true);
+  }, FOCUS_ENFORCE_INTERVAL_MS);
 }
 
 function startSecurityMonitoring() {
@@ -709,11 +752,27 @@ ipcMain.handle("kill-apps", async (e, pids = []) => {
 ipcMain.handle("is-session-active", () => shouldStartPolling);
 
 ipcMain.handle("submit-assessment", async () => {
-  app.quit();
+  if (currentSession) {
+    const returnUrl = new URL(currentSession?.targetUrl || WEB_APP_ORIGIN);
+    returnUrl.searchParams.set("desktop_mode", "secure_browser");
+    if (currentSession.accessToken) {
+      returnUrl.searchParams.set("access_token", currentSession.accessToken);
+    }
+    if (currentSession.refreshToken) {
+      returnUrl.searchParams.set("refresh_token", currentSession.refreshToken);
+    }
+    await shell.openExternal(returnUrl.toString());
+  }
+  setTimeout(() => app.quit(), 3000);
 });
 
 ipcMain.handle("dismiss-security-warning", () => {
   safeHideWindow(overlayWindow);
+  if (isUsableWindow(mainWindow)) {
+    mainWindow.setAlwaysOnTop(true, "screen-saver");
+    mainWindow.setKiosk(true);
+    mainWindow.focus();
+  }
 });
 
 ipcMain.handle("close-security-app", async (_event, pid) => {
@@ -724,11 +783,21 @@ ipcMain.handle("close-security-app", async (_event, pid) => {
   try {
     process.kill(numericPid, "SIGTERM");
     safeHideWindow(overlayWindow);
+    if (isUsableWindow(mainWindow)) {
+      mainWindow.setAlwaysOnTop(true, "screen-saver");
+      mainWindow.setKiosk(true);
+      mainWindow.focus();
+    }
     return true;
   } catch {
     try {
       process.kill(numericPid, "SIGKILL");
       safeHideWindow(overlayWindow);
+      if (isUsableWindow(mainWindow)) {
+        mainWindow.setAlwaysOnTop(true, "screen-saver");
+        mainWindow.setKiosk(true);
+        mainWindow.focus();
+      }
       return true;
     } catch {
       return false;

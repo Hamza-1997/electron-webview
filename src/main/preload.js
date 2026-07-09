@@ -1,5 +1,39 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+function watchAssessmentCompletion() {
+  const trigger = () => {
+    ipcRenderer.invoke("submit-assessment");
+  };
+
+  const checkText = () => {
+    if (document.body?.textContent?.includes("Assessment Completed")) {
+      trigger();
+      return true;
+    }
+    return false;
+  };
+
+  if (checkText()) return;
+
+  const observer = new MutationObserver(() => {
+    if (checkText()) observer.disconnect();
+  });
+
+  const start = () => {
+    if (document.body) {
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
+}
+
+watchAssessmentCompletion();
+
 contextBridge.exposeInMainWorld("api", {
   scanApps: () => ipcRenderer.invoke("scan-apps"),
   killApps: (pids) => ipcRenderer.invoke("kill-apps", pids),
