@@ -274,13 +274,9 @@ function showSecurityWarning({ type, title, message, detail, app = null }) {
     if (!isUsableWindow(overlayWindow)) return;
 
     overlayWindow.webContents.send("security-warning", payload);
-    overlayWindow.showInactive();
+    overlayWindow.show();
     overlayWindow.setAlwaysOnTop(true, "screen-saver");
-
-    if (isUsableWindow(mainWindow)) {
-      mainWindow.setAlwaysOnTop(true, "screen-saver");
-      mainWindow.focus();
-    }
+    overlayWindow.moveTop();
   };
 
   if (overlayWindow.webContents.isLoading()) {
@@ -667,6 +663,9 @@ for pid in /proc/[0-9]*; do
   # Essential Core Linux Folders
   echo "$path" | grep -qE "^(/usr/lib|/lib|/lib64|/usr/libexec|/usr/share)" && continue
   
+  # Known overlay/recording/AI-assistant tools (flag even if in /usr/bin)
+  echo "$name" | grep -qiE "^(pluely|simplescreenrecorder|obs|kazam|vokoscreen|recordmydesktop|peek|green?shot|flameshot|spectacle|shutter|deepin.?screen|gnome.?screen)" && echo "$p|$name|$path" && continue
+
   # Core Shell Utilities & Standard Desktop Apps (safe to whitelist all of /usr/bin
   # and /usr/local/bin — suspicious apps like Discord/Slack/VSCode install to /opt, /snap, or home)
   echo "$path" | grep -qE "^(/usr/bin|/usr/local/bin)" && continue
@@ -680,7 +679,7 @@ for pid in /proc/[0-9]*; do
   # ============================================================================
   # Ignore IDEs, local Node processes, Docker engines, and active workspaces
   echo "$path" | grep -qE "/\\.vscode/|/node$|/nodejs/|/npm$|/npx$|/python|/docker$|/docker-compose|[/.]nvm/" && continue
-  echo "$path" | grep -qiE "(sternguard|testfuse-electron|testfuse|pyrefly|opencode)" && continue
+  echo "$path" | grep -qiE "(sternguard|testfuse-electron|testfuse|pyrefly|codex|opencode)" && continue
 
   # ============================================================================
   # WEB BROWSER WHITELIST (Candidate needs these to take the exam)
@@ -766,7 +765,8 @@ ipcMain.handle("submit-assessment", async () => {
   setTimeout(() => app.quit(), 3000);
 });
 
-ipcMain.handle("dismiss-security-warning", () => {
+ipcMain.handle("dismiss-security-warning", (_event, pid) => {
+  if (pid) warnedPids.delete(pid);
   safeHideWindow(overlayWindow);
   if (isUsableWindow(mainWindow)) {
     mainWindow.setAlwaysOnTop(true, "screen-saver");

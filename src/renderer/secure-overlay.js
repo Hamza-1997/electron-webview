@@ -35,5 +35,5 @@ closeAppBtn.addEventListener("click", async () => {
 });
 
 dismissBtn.addEventListener("click", () => {
-  window.api.dismissSecurityWarning();
+  window.api.dismissSecurityWarning(activeWarning?.app?.pid);
 });

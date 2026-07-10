@@ -42,6 +42,6 @@ contextBridge.exposeInMainWorld("api", {
   onScreenshotAttempt: (cb) => ipcRenderer.on("screenshot-attempt", (e, data) => cb(data)),
   submitAssessment: () => ipcRenderer.invoke("submit-assessment"),
   onSecurityWarning: (cb) => ipcRenderer.on("security-warning", (e, data) => cb(data)),
-  dismissSecurityWarning: () => ipcRenderer.invoke("dismiss-security-warning"),
+  dismissSecurityWarning: (pid) => ipcRenderer.invoke("dismiss-security-warning", pid),
   closeSecurityApp: (pid) => ipcRenderer.invoke("close-security-app", pid),
 });
